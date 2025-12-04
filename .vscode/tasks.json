@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Create venv & install deps",
+      "type": "shell",
+      "command": "python -m venv .venv; .\\.venv\\Scripts\\Activate.ps1; pip install -r requirements.txt",
+      "presentation": {"echo": true, "reveal": "always", "panel": "shared"},
+      "problemMatcher": []
+    }
+  ]
+}
