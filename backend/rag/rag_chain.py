@@ -1,8 +1,8 @@
-"""RAG Á´, ½áºÏÏòÁ¿Êý¾Ý¿âºÍ LLM"""
+"""RAGé“¾æ¨¡å—ï¼Œå°†æ£€ç´¢åˆ°çš„æ–‡æ¡£ä¸ŽLLMç»“åˆç”Ÿæˆå›žç­”ã€‚"""
 from typing import List, Optional, Union
 from langchain_classic.schema.document import Document
 from langchain_core.prompts import PromptTemplate
-from langchain_community.chains import RetrievalQA
+from langchain_community.chains import PebbloRetrievalQA
 
 from backend.llm.llm_factory import get_llm
 from .vector_store import VectorStoreManager
@@ -31,29 +31,29 @@ class RAGChain:
         )
 
         if self.vector_store_manager.vector_store is None:
-            print("ÇëÏÈ´´½¨»ò¼ÓÔØÏòÁ¿´æ´¢")
+            print("è¯·å…ˆåˆ›å»ºæˆ–åŠ è½½å‘é‡å­˜å‚¨")
             return False
         
         self.retriever = self.vector_store_manager.vector_store.as_retriever(search_kwargs={"k": k})
 
         prompt_template = """
-        Ê¹ÓÃÒÔÏÂÉÏÏÂÎÄÀ´»Ø´ðÓÃ»§µÄÎÊÌâ¡£Èç¹ûÄã²»ÖªµÀ´ð°¸£¬Çë³ÏÊµµØËµÄã²»ÖªµÀ£¬²»Òª±àÔì´ð°¸¡£
-        »Ø´ðÓ¦¸Ã¼òÃ÷¶óÒª£¬²¢ÇÒ»ùÓÚÌá¹©µÄÉÏÏÂÎÄ¡£
+        ä½¿ç”¨ä»¥ä¸‹ä¸Šä¸‹æ–‡æ¥å›žç­”ç”¨æˆ·çš„é—®é¢˜ã€‚å¦‚æžœä½ ä¸çŸ¥é“ç­”æ¡ˆï¼Œè¯·è¯šå®žåœ°è¯´ä½ ä¸çŸ¥é“ï¼Œä¸è¦ç¼–é€ ç­”æ¡ˆã€‚
+        å›žç­”åº”è¯¥ç®€æ˜Žæ‰¼è¦ï¼Œå¹¶ä¸”åŸºäºŽæä¾›çš„ä¸Šä¸‹æ–‡ã€‚
 
-        ÉÏÏÂÎÄ:
+        ä¸Šä¸‹æ–‡:
         {context}
 
-        ÎÊÌâ:
+        é—®é¢˜:
         {question}
 
-        »Ø´ð:
+        å›žç­”:
         """
         PROMPT = PromptTemplate(
             template=prompt_template,
             input_variables=["context", "question"]
         )
 
-        self.qa_chain = RetrievalQA.from_chain_type(
+        self.qa_chain = PebbloRetrievalQA.from_chain_type(
             llm = self.llm,
             chain_type = "stuff",
             retriever = self.retriever,
@@ -65,8 +65,8 @@ class RAGChain:
     
     def answer_question(self, question: str) -> dict:
         if not self.qa_chain:
-            print("ÇëÏÈÉèÖÃ QA Á´")
-            return {"answer": "QA Á´Î´ÉèÖÃ", "source_documents": []}
+            print("è¯·å…ˆè®¾ç½® QA é“¾")
+            return {"answer": "QA é“¾æœªè®¾ç½®", "source_documents": []}
         
         try:
             result = self.qa_chain.invoke({"query": question})
@@ -75,8 +75,8 @@ class RAGChain:
                 "source_documents": result.get("source_documents", [])
             }
         except Exception as e:
-            print(f"»Ø´ðÎÊÌâÊ±³ö´í: {e}")
-            return {"answer": "»Ø´ðÎÊÌâÊ±³ö´í", "source_documents": []}
+            print(f"å›žç­”é—®é¢˜æ—¶å‡ºé”™: {e}")
+            return {"answer": "å›žç­”é—®é¢˜æ—¶å‡ºé”™", "source_documents": []}
         
     def get_relevant_documents(self, query: str, k: int=3) -> List[Document]:
         #get and query relevan documents

@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 import os
 import sys
 
+from backend.rag import RAGChain, VectorStoreManager, DocumentProcessor
+import tempfile
+
 # Ensure project root is on sys.path so `from backend...` works when running
 # the app via Streamlit or other runners whose CWD may differ.
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,6 +18,13 @@ load_dotenv()
 from backend.llm.llm_factory import get_llm
 
 st.set_page_config(page_title="能源AI助手", layout="wide", initial_sidebar_state="collapsed")
+
+#initizlize RAG session state
+if "rag_initialized" not in st.session_state:
+    st.session_state.rag_initialized = False
+    st.session_state.rag_components = None
+    st.session_state.use_rag = False
+    st.session_state.vector_store_loaded = False
 
 st.markdown("""
     <style>
@@ -41,6 +51,23 @@ st.markdown("""
     .css-145kmo2 {display: none;}
     </style>
     """, unsafe_allow_html=True)
+
+def initialize_rag():
+    if not st.session_state.rag_initialized:
+        vector_store_manager = VectorStoreManager(persist_directory="./vectorstore/energy_docs")
+        vector_store = vector_store_manager.load_vector_store(collection_name="energy_docs")
+        st.session_state.vector_store_loaded = vector_store is not None
+
+        #create RAG components
+        st.session_state.rag_components = {
+            "doc_processor": DocumentProcessor(chunk_size=1000, chunk_overlap=200),
+            "vector_store_manager": vector_store_manager,
+            "rag_chain": RAGChain(vector_store_manager=vector_store_manager)
+        }
+
+        st.session_state.rag_initialized = True
+
+    return st.session_state.rag_components
 
 main_container = st.empty()
 
@@ -80,17 +107,68 @@ with main_container.container():
                                         max_value=4096, 
                                         value=int(os.getenv("MAX_TOKENS", 1000)), 
                                         step=64)
-            st.subheader("快速提问", divider="gray")
-            quick_questions = [
-                "什么是可再生能源？",
-                "光伏和风能的优缺点比较",
-                "如何提高能源使用效率？"
-            ]
             
-            for i, q in enumerate(quick_questions):
-                if st.button(q, key=f"quick_{i}", use_container_width=True):
-                    # 使用会话状态存储快速提问
-                    st.session_state.prompt = q
+            st.subheader("RAG设置", divider="gray")
+            use_rag = st.checkbox("启用RAG", value=st.session_state.use_rag)
+            st.session_state.use_rag = use_rag
+            
+            if use_rag:
+                rag_components = initialize_rag()
+                if st.session_state.vector_store_loaded:
+                    st.success("向量存储已加载")
+                else:
+                    st.warning("未加载向量存储")
+
+                st.markdown("上传文档")
+                uploaded_files = st.file_uploader(
+                    "选择文档",
+                    type=["pdf", "txt", "doc", "docx"],
+                    accept_multiple_files=True,
+                )
+
+                if uploaded_files and st.button("处理文档"):
+                    with st.spinner("..."):
+                        try:
+                            all_docs = []
+                            # 存储临时文件路径，用于后续删除
+                            temp_file_paths = []
+                            
+                            for uploaded_file in uploaded_files:
+                                # 1. 创建临时文件（注意with语句结束后文件会自动关闭）
+                                tmp_path = None
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
+                                    tmp_file.write(uploaded_file.getvalue())
+                                    tmp_path = tmp_file.name
+                                    temp_file_paths.append(tmp_path)
+                                
+                                # 2. 文件已关闭后再处理文档
+                                if tmp_path:
+                                    docs = rag_components["doc_processor"].process_single_docu(tmp_path)
+                                    all_docs.extend(docs)
+                            
+                            # 3. 处理完所有文档后再创建向量存储
+                            rag_components["vector_store_manager"].create_vector_store(all_docs, collection_name="energy_docs")
+                            st.session_state.vector_store_loaded = True
+                            st.success(f"成功处理{len(uploaded_files)}个文件")
+                            
+                            # 4. 最后删除所有临时文件
+                            for tmp_path in temp_file_paths:
+                                try:
+                                    if os.path.exists(tmp_path):
+                                        os.unlink(tmp_path)
+                                except Exception as e:
+                                    # 记录删除失败但不影响主流程
+                                    print(f"删除临时文件失败: {e}")
+                        except Exception as e:
+                            # 清理临时文件
+                            for tmp_path in temp_file_paths:
+                                try:
+                                    if os.path.exists(tmp_path):
+                                        os.unlink(tmp_path)
+                                except:
+                                    pass
+                            st.error(f"处理文档时出错: {e}")
+            
 
     with col2:
         chat_container = st.container(height=570)
@@ -156,7 +234,21 @@ with main_container.container():
                 
                 # 调用LLM获取回复
                 with st.spinner("正在生成回复..."):
-                    resp = llm.chat(prompt_input)
+                    if st.session_state.use_rag and st.session_state.rag_components and st.session_state.vector_store_loaded:
+                        rag_chain = st.session_state.rag_components["rag_chain"]
+                        #rag_setup
+                        rag_chain.setup_qa_chain(
+                            llm_provider = "langchain",
+                            model_name = model_name,
+                            temperature = temperature,
+                            max_tokens = max_tokens,
+                            k =3
+                        )
+
+                        result = rag_chain.answer_question(prompt_input)
+                        resp = result["answer"]
+                    else:
+                        resp = llm.chat(prompt_input)
                     
                     # 添加AI回复到历史
                     st.session_state.chat_history.append({

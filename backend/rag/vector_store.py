@@ -10,7 +10,7 @@ class VectorStoreManager:
 
     def __init__(self, persist_directory: str = "vectorstore"):
         self.persist_directory = persist_directory
-        self.embeddings = OpenAIEmbeddings()
+        self.embeddings = OpenAIEmbeddings(api_key=os.getenv("ALIYUN_API_KEY"))
         self.vector_store = None
 
     def create_vector_store(self, documents: List[Document], collection_name: str = "default_collection"):
@@ -25,7 +25,7 @@ class VectorStoreManager:
     
     def load_vector_store(self, collection_name: str = "default_collection") -> Optional[Chroma]:
         if not os.path.exists(self.persist_directory):
-            print(f"ÏòÁ¿´æ´¢Ä¿Â¼²»´æÔÚ£º {self.persist_directory}")
+            print(f"å‘é‡å­˜å‚¨ç›®å½•ä¸å­˜åœ¨ï¼š {self.persist_directory}")
             return None
         
         try:
@@ -36,31 +36,31 @@ class VectorStoreManager:
             )
             return self.vector_store
         except Exception as e:
-            print(f"¼ÓÔØÏòÁ¿´æ´¢Ê§°Ü£º{e}")
+            print(f"åŠ è½½å‘é‡å­˜å‚¨å¤±è´¥ï¼š{e}")
             return None
     
     def add_documents(self, documents: List[Document]):
         if self.vector_store is None:
-            print("ÇëÏÈ´´½¨»ò¼ÓÔØÏòÁ¿´æ´¢¡£")
+            print("è¯·å…ˆåˆ›å»ºæˆ–åŠ è½½å‘é‡å­˜å‚¨ã€‚")
             return False
         
         try:
             self.vector_store.add_documents(documents)
             return True
         except Exception as e:
-            print(f"Ìí¼ÓÎÄµµµ½ÏòÁ¿´æ´¢Ê§°Ü£º{e}")
+            print(f"æ·»åŠ æ–‡æ¡£åˆ°å‘é‡å­˜å‚¨å¤±è´¥ï¼š{e}")
             return False
         
     def similar_search(self, query: str, k: int = 3) -> List[Document]:
         if self.vector_store is None:
-            print("ÇëÏÈ´´½¨»ò¼ÓÔØÏòÁ¿´æ´¢")
+            print("è¯·å…ˆåˆ›å»ºæˆ–åŠ è½½å‘é‡å­˜å‚¨")
             return []
         
         return self.vector_store.similarity_search(query, k=k)
     
     def similar_search_score(self, query: str, k: int = 3) -> List[tuple[Document, float]]:
         if self.vector_store is None:
-            print("ÇëÏÈ´´½¨»ò¼ÓÔØÏòÁ¿´æ´¢")
+            print("è¯·å…ˆåˆ›å»ºæˆ–åŠ è½½å‘é‡å­˜å‚¨")
             return []
         
         return self.vector_store.similarity_search_with_score(query, k=k)
@@ -73,9 +73,9 @@ class VectorStoreManager:
             try:
                 self.vector_store.delete_collection()
                 self.vector_store = None
-                print(f"ÒÑÉ¾³ı¼¯ºÏ: {collection_name}")
+                print(f"å·²åˆ é™¤é›†åˆ: {collection_name}")
                 return True
             except Exception as e:
-                print(f"É¾³ı¼¯ºÏÊ§°Ü: {e}")
+                print(f"åˆ é™¤é›†åˆå¤±è´¥: {e}")
                 return False
         return False

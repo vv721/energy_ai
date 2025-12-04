@@ -1,8 +1,8 @@
-"""ÎÄµµ´¦ÀíÆ÷Ä£¿é£¬¼ÓÔØ£¬½âÎöºÍ´¦ÀíÎÄµµ"""
+"""æ–‡æ¡£å¤„ç†å™¨æ¨¡å—ï¼ŒåŠ è½½ï¼Œè§£æå’Œå¤„ç†æ–‡æ¡£"""
 
 import os
 from typing import List, Optional, Union
-from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredWordLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_classic.schema.document import Document
 
@@ -21,9 +21,9 @@ class DocumentProcessor:
         )
 
     def load_document(self, file_path: str) -> Optional[List[Document]]:
-        #¼ÓÔØÎÄµµ
+        #åŠ è½½æ–‡æ¡£
         if not os.path.exists(file_path):
-            print(f"ÎÄ¼ş²»´æÔÚ: {file_path}")
+            print(f"æ–‡ä»¶ä¸å­˜åœ¨: {file_path}")
             return None
         
         file_ext = os.path.splitext(file_path)[1].lower()
@@ -34,14 +34,14 @@ class DocumentProcessor:
             elif file_ext == ".txt":
                 loader = TextLoader(file_path, encoding="utf-8")
             elif file_ext in [".doc", ".docx"]:
-                loader = UnstructuredWordLoader(file_path)
+                loader = Docx2txtLoader(file_path)
             else:
-                print(f"²»Ö§³ÖµÄÎÄ¼ş¸ñÊ½: {file_ext}")
+                print(f"ä¸æ”¯æŒçš„æ–‡ä»¶æ ¼å¼: {file_ext}")
                 return None
             
             return loader.load()
         except Exception as e:
-            print(f"¼ÓÔØÎÄµµ {file_path} Ê±³ö´í: {e}")
+            print(f"åŠ è½½æ–‡æ¡£ {file_path} æ—¶å‡ºé”™: {e}")
             return None
         
     def load_doc_from_dir(self, dir_path: str) -> List[Document]:
@@ -50,7 +50,7 @@ class DocumentProcessor:
         supported_exts = [".pdf", ".txt", ".doc", ".docx"]
 
         if not os.path.isdir(dir_path):
-            print(f"Ä¿Â¼²»´æÔÚ: {dir_path}")
+            print(f"ç›®å½•ä¸å­˜åœ¨: {dir_path}")
             return documents
         
         for file_name in os.listdir(dir_path):
