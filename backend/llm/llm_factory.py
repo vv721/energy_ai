@@ -44,7 +44,7 @@ class BaseLLM:
     def chat(self, prompt: str) -> str:
         raise NotImplementedError()
     
-    def invoke(self, input: str) -> str:
+    def invoke(self, input: str | dict, config: Optional[dict] = None) -> str:
         """LangChain Runnable 接口方法"""
         if isinstance(input, dict) and "input" in input:
             return self.chat(input["input"])

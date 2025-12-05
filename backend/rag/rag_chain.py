@@ -95,7 +95,12 @@ class RAGChain:
             {"context": self.retriever | (lambda docs: format_docs(docs)), "question": RunnablePassthrough()}
         )
         
-        self.qa_chain = setup_and_retrieval | rag_prompt | self.llm | StrOutputParser()
+        # self.qa_chain = setup_and_retrieval | rag_prompt | self.llm | StrOutputParser()
+        def invoke_llm(inputs):
+            prompt = rag_prompt.format(**inputs)
+            return self.llm.chat(prompt)
+
+        self.qa_chain = setup_and_retrieval | invoke_llm
 
         return True
     
