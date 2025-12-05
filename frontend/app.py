@@ -162,6 +162,15 @@ with main_container.container():
                             # 3. 处理完所有文档后再创建向量存储
                             rag_components["vector_store_manager"].create_vector_store(all_docs, collection_name="energy_docs")
                             st.session_state.vector_store_loaded = True
+
+                            rag_components["rag_chain"].setup_qa_chain(
+                                llm_provider=provider.lower(),
+                                model_name=model_name,
+                                temperature=temperature,
+                                max_tokens=max_tokens,
+                                k=3
+                            )
+
                             st.success(f"成功处理{len(uploaded_files)}个文件")
                             
                             # 4. 最后删除所有临时文件

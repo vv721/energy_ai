@@ -54,17 +54,24 @@ class DashScopeEmbeddings(Embeddings):
         
         # 首先尝试 DashScope
         try:
-            resp = dashscope.TextEmbedding.call(
-                model=self.model,
-                input=inputs
-            )
+            #DashScope limit 25 per request
+            batch_size = 25
+            all_embedding = []
 
-            if resp.status_code == HTTPStatus.OK:
-                embeddings = resp.output.get("embeddings", [])
-                return [item["embedding"] for item in embeddings]
-            else:
-                error_msg = getattr(resp, "message", str(resp.status_code))
-                raise Exception(f"DashScope 嵌入失败：{error_msg}")
+            for i in range(0, len(inputs), batch_size):
+                batch = inputs[i:i+batch_size]
+                resp = dashscope.TextEmbedding.call(
+                    model=self.model,
+                    input=batch
+            )
+                if resp.status_code == HTTPStatus.OK:
+                    embeddings = resp.output.get("embeddings", [])
+                    all_embedding.extend([item["embedding"] for item in embeddings])
+                else:
+                    error_msg = getattr(resp, "message", str(resp.status_code))
+                    raise Exception(f"DashScope 嵌入失败：{error_msg}")
+            return all_embedding
+
         except Exception as e:
             print(f"[警告] DashScope 嵌入失败：{e}，尝试本地模型...")
             
