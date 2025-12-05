@@ -1,9 +1,8 @@
 """RAG链模块，将检索到的文档与LLM结合生成回答。"""
-from typing import List, Optional, Union
-from langchain_classic.schema.document import Document
+from typing import List, Optional, Union, Dict, Any
+from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 from langchain_community.chains import PebbloRetrievalQA
-
 from backend.llm.llm_factory import get_llm
 from .vector_store import VectorStoreManager
 
@@ -53,17 +52,21 @@ class RAGChain:
             input_variables=["context", "question"]
         )
 
+        # 使用标准 RetrievalQA（支持 Chroma 向量存储）
         self.qa_chain = PebbloRetrievalQA.from_chain_type(
-            llm = self.llm,
-            chain_type = "stuff",
-            retriever = self.retriever,
-            chain_type_kwargs = {"prompt": PROMPT},
-            return_source_documents = True
+            llm=self.llm,
+            chain_type="stuff",
+            retriever=self.retriever,
+            chain_type_kwargs={"prompt": PROMPT},
+            return_source_documents=True,
+            owner="han",
+            app_name="energy_ai",
+            description="energy_ai"
         )
 
         return True
     
-    def answer_question(self, question: str) -> dict:
+    def answer_question(self, question: str) -> Dict[str, Any]:
         if not self.qa_chain:
             print("请先设置 QA 链")
             return {"answer": "QA 链未设置", "source_documents": []}

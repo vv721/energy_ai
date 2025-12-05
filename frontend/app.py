@@ -4,6 +4,10 @@ from dotenv import load_dotenv
 import os
 import sys
 
+# 确保 PWD 环境变量存在（某些库可能需要）；若不存在则设置为当前工作目录
+if "PWD" not in os.environ:
+    os.environ["PWD"] = os.getcwd()
+
 import tempfile
 
 # Ensure project root is on sys.path so `from backend...` works when running
@@ -54,7 +58,12 @@ st.markdown("""
 
 def initialize_rag():
     if not st.session_state.rag_initialized:
-        vector_store_manager = VectorStoreManager(persist_directory="./vectorstore/energy_docs")
+        # 使用绝对路径而非相对路径，避免 Streamlit 环境下的路径问题
+        import pathlib
+        project_root = pathlib.Path(__file__).parent.parent
+        vectorstore_path = project_root / "vectorstore" / "energy_docs"
+        
+        vector_store_manager = VectorStoreManager(persist_directory=str(vectorstore_path))
         vector_store = vector_store_manager.load_vector_store(collection_name="energy_docs")
         st.session_state.vector_store_loaded = vector_store is not None
 
@@ -200,7 +209,7 @@ with main_container.container():
             # 文本输入框
             with input_col:
                 prompt_input = st.text_input(
-                    "",
+                    "问题输入",
                     value=st.session_state.prompt,
                     placeholder="请输入您的问题...",
                     label_visibility="collapsed",
@@ -238,7 +247,7 @@ with main_container.container():
                         rag_chain = st.session_state.rag_components["rag_chain"]
                         #rag_setup
                         rag_chain.setup_qa_chain(
-                            llm_provider = "langchain",
+                            llm_provider = provider,  # 使用前端选择的 provider 变量
                             model_name = model_name,
                             temperature = temperature,
                             max_tokens = max_tokens,

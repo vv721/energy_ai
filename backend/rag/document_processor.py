@@ -1,10 +1,12 @@
 """文档处理器模块，加载，解析和处理文档"""
 
 import os
+import dashscope
 from typing import List, Optional, Union
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_classic.schema.document import Document
+from http import HTTPStatus
 
 
 #load and split documents
@@ -77,3 +79,36 @@ class DocumentProcessor:
         #load and split documents in a directory
         documents = self.load_doc_from_dir(dir_path)
         return self.split_documents(documents)
+    
+    def process_img_embed(self, image_path: str) -> Optional[List[float]]:
+        #process image embedding
+        try:
+            if not os.path.exists(image_path):
+                print(f"图片文件不存在: {image_path}")
+                return None
+            
+            #use Aliyun enbedding model
+            api_key = os.getenv("DASHSCOPE_API_KEY")
+            if not api_key:
+                raise ValueError("DashScope API Key 未配置")
+                
+            dashscope.api_key = api_key
+
+            input_data = [{"image": image_path}]
+
+            resp = dashscope.MultiModalEmbedding.call(
+                model='tongyi-embedding-vision-plus',
+                input=input_data
+            )
+
+            if resp.status_code == HTTPStatus.OK:
+                return resp.output['embeddings'][0]['embedding']
+            else:
+                print(f"图象嵌入生成失败:{resp.message}")
+                return None
+            
+        except Exception as e:
+            print(f"处理图片 {image_path} 时出错: {e}")
+            return None
+        
+        

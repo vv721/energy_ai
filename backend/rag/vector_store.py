@@ -1,8 +1,49 @@
 import os
+import dashscope
 from typing import List, Optional
 from langchain_classic.schema.document import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
+from langchain_core.embeddings import Embeddings
+from http import HTTPStatus
+
+
+class DashScopeEmbeddings(Embeddings):
+    #Packaging Aliyun DashScope Embeddings
+    def __init__(self, model: str="text-embedding-v1", api_key: str=None):
+        self.model = model
+        self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY")
+        if not self.api_key:
+            raise ValueError("DashScope API Key 未配置")
+        dashscope.api_key = self.api_key
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        #docs embedding
+        try:
+            #docs set max_token
+            inputs = [text[:8192] for text in texts]
+            resp = dashscope.TextEmbedding.call(
+                model=self.model,
+                input=inputs
+            )
+
+            if resp.status_code == HTTPStatus.OK:
+                return [item["embedding"] for item in resp.output["embeddings"]]
+            else:
+                raise Exception(f"DashScope 嵌入文档失败：{resp.message}")
+        except Exception as e:
+            print(f"DashScope 嵌入文档错误：{e}")
+            #spare: loacal model
+            try:
+                from sentence_transformers import SentenceTransformer
+                model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+                return model.encode(inputs).tolist()
+            except Exception as fallback_e:
+                print(f"本地模型嵌入文档错误：{fallback_e}")
+                return e
+            
+    def embed_query(self, text: str) -> List[float]:
+        return self.embed_documents([text])[0]
 
 
 class VectorStoreManager:
@@ -10,7 +51,9 @@ class VectorStoreManager:
 
     def __init__(self, persist_directory: str = "vectorstore"):
         self.persist_directory = persist_directory
-        self.embeddings = OpenAIEmbeddings(api_key=os.getenv("ALIYUN_API_KEY"))
+        #use Ali embedding model
+        self.embeddings = DashScopeEmbeddings(model="text-embedding-v1", 
+                                           api_key=os.getenv("ALIYUN_API_KEY"))
         self.vector_store = None
 
     def create_vector_store(self, documents: List[Document], collection_name: str = "default_collection"):

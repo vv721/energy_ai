@@ -24,6 +24,11 @@ try:
 except ImportError:
     LANGCHAIN_AVAILABLE = False
 
+try:
+    from langchain_core.runnables import Runnable
+except ImportError:
+    from langchain_core.runnables.base import Runnable
+
 ENERGY_SYSTEM_PROMPT = """你是一个专业的能源AI助手，专注于回答与能源相关的问题，包括但不限于：
 - 能源生产（煤炭、石油、天然气、风电、光伏、水电等）
 - 能源消耗与效率
@@ -38,9 +43,15 @@ ENERGY_SYSTEM_PROMPT = """你是一个专业的能源AI助手，专注于回答�
 class BaseLLM:
     def chat(self, prompt: str) -> str:
         raise NotImplementedError()
+    
+    def invoke(self, input: str) -> str:
+        """LangChain Runnable 接口方法"""
+        if isinstance(input, dict) and "input" in input:
+            return self.chat(input["input"])
+        return self.chat(input)
 
 
-class OpenAIPythonLLM(BaseLLM):
+class OpenAIPythonLLM(BaseLLM, Runnable):
     def __init__(
         self, 
         model_name: str, 
@@ -72,9 +83,15 @@ class OpenAIPythonLLM(BaseLLM):
             max_tokens=self.max_tokens,
         )
         return resp.choices[0].message.content.strip()
+    
+    def invoke(self, input: str | dict) -> str:
+        """LangChain Runnable 接口实现"""
+        if isinstance(input, dict) and "input" in input:
+            return self.chat(input["input"])
+        return self.chat(str(input))
 
 
-class LangChainLLM(BaseLLM):
+class LangChainLLM(BaseLLM, Runnable):
     def __init__(
         self, 
         model_name: str, 
@@ -101,6 +118,12 @@ class LangChainLLM(BaseLLM):
         ]
         resp = self._client.invoke(messages)
         return resp.content.strip()
+    
+    def invoke(self, input: str | dict) -> str:
+        """LangChain Runnable 接口实现"""
+        if isinstance(input, dict) and "input" in input:
+            return self.chat(input["input"])
+        return self.chat(str(input))
 
 
 def get_llm(
