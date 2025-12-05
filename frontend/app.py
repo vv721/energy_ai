@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 import os
 import sys
 
-from backend.rag import RAGChain, VectorStoreManager, DocumentProcessor
 import tempfile
 
 # Ensure project root is on sys.path so `from backend...` works when running
@@ -15,6 +14,7 @@ if PROJECT_ROOT not in sys.path:
 
 load_dotenv()
 
+from backend.rag import RAGChain, VectorStoreManager, DocumentProcessor
 from backend.llm.llm_factory import get_llm
 
 st.set_page_config(page_title="能源AI助手", layout="wide", initial_sidebar_state="collapsed")
