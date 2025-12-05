@@ -5,7 +5,7 @@ import dashscope
 from typing import List, Optional, Union
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_classic.schema.document import Document
+from langchain_core.documents import Document
 from http import HTTPStatus
 
 

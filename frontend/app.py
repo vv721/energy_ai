@@ -89,9 +89,13 @@ with main_container.container():
         with st.container(height=700):
 
             st.subheader("模型配置", divider="gray")
+            # 根据 .env 中的 DEFAULT_PROVIDER 设置默认值
+            default_provider = os.getenv("DEFAULT_PROVIDER", "aliyun").lower()
+            provider_index = 1 if default_provider == "aliyun" else 0
+            
             provider = st.selectbox("模型提供者", 
                                     options=["OpenAI", "Aliyun"], 
-                                    index=1,
+                                    index=provider_index,
                                     key="provider_select")
             
             if provider == "OpenAI":
@@ -99,10 +103,10 @@ with main_container.container():
                                             options=["gpt-4", "gpt-3.5-turbo"], 
                                             index=1,
                                             key="model_name_select")
-            if provider == "Aliyun":
+            else:  # Aliyun
                 model_name = st.selectbox("模型名称", 
-                                            options=["Qwen3", "qwen-turbo"], 
-                                            index=1,
+                                            options=["qwen-turbo", "qwen-plus"], 
+                                            index=0,  # 默认选择 qwen-turbo
                                             key="model_name_select")
 
             st.subheader("参数设置", divider="gray")
@@ -233,9 +237,12 @@ with main_container.container():
             })
             
             try:
+                # 规范化 provider（转小写）
+                provider_normalized = provider.lower()
+                
                 # 创建LLM
                 llm = get_llm(
-                    provider=provider,
+                    provider=provider_normalized,
                     model_name=model_name, 
                     temperature=temperature,
                     max_tokens=max_tokens
@@ -247,11 +254,11 @@ with main_container.container():
                         rag_chain = st.session_state.rag_components["rag_chain"]
                         #rag_setup
                         rag_chain.setup_qa_chain(
-                            llm_provider = provider,  # 使用前端选择的 provider 变量
-                            model_name = model_name,
-                            temperature = temperature,
-                            max_tokens = max_tokens,
-                            k =3
+                            llm_provider=provider_normalized,  # 使用规范化后的 provider
+                            model_name=model_name,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            k=3
                         )
 
                         result = rag_chain.answer_question(prompt_input)

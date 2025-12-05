@@ -137,24 +137,37 @@ def get_llm(
     """工厂方法，返回具体 LLM 实例。
 
     参数优先级：函数参数 -> 环境变量 -> 默认值。
+    支持 OpenAI 和 Aliyun (DashScope) 两种 Provider。
     """
-    provider = (provider or os.getenv("LLM_PROVIDER", "openai"))
-    model_name = model_name or os.getenv("MODEL_NAME", "gpt-4o")
+    # 规范化 provider（转小写处理）
+    provider = (provider or os.getenv("DEFAULT_PROVIDER", "aliyun")).lower()
+    
+    # 根据 provider 选择默认模型
+    if provider == "openai":
+        model_name = model_name or os.getenv("MODEL_NAME", "gpt-3.5-turbo")
+    elif provider == "aliyun":
+        model_name = model_name or os.getenv("MODEL_NAME", "qwen-turbo")
+    else:
+        model_name = model_name or os.getenv("MODEL_NAME", "gpt-3.5-turbo")
+    
     temperature = float(temperature) if temperature is not None else float(os.getenv("TEMPERATURE", 0.1))
     max_tokens = int(max_tokens) if max_tokens is not None else int(os.getenv("MAX_TOKENS", 1000))
 
-
-    if provider == "OpenAI":
+    # 根据 provider 获取 API Key 和 Base URL
+    if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
-        api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-    elif provider == "Aliyun":
+        api_base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    elif provider == "aliyun":
         api_key = os.getenv("ALIYUN_API_KEY")
-        api_base = os.getenv("ALIYUN_BASE_URL")
+        api_base = os.getenv("ALIYUN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
     else:
-        raise ValueError(f"不支持的 provider: {provider}")
+        raise ValueError(f"不支持的 provider: {provider}。支持的选项: openai, aliyun")
     
-    if not api_key:
-        raise ValueError(f"{provider.upper()} 的 API Key 未配置")
+    if not api_key or api_key == "your_key":
+        raise ValueError(
+            f"[{provider.upper()} 配置错误] API Key 未配置或为默认值。"
+            f"请在 .env 文件中检查相关配置。"
+        )
 
     # 优先使用 LangChain（若可用）
     if LANGCHAIN_AVAILABLE:
