@@ -10,3 +10,4 @@ langchain_community>=0.0.100
 langchain_openai>=0.0.50
 langchain_chromadb
 dashscope sentence-transformers
+docx2txt

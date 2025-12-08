@@ -65,7 +65,13 @@ def initialize_rag():
         
         vector_store_manager = VectorStoreManager(persist_directory=str(vectorstore_path))
         vector_store = vector_store_manager.load_vector_store(collection_name="energy_docs")
-        st.session_state.vector_store_loaded = vector_store is not None
+        
+        #确保向量存储对象正确设置
+        if vector_store is not None:
+            st.session_state.vector_store_loaded = True
+            vector_store_manager.vector_store = vector_store
+        else:
+            st.session_state.vector_store_loaded = True
 
         #create RAG components
         st.session_state.rag_components = {
@@ -160,8 +166,13 @@ with main_container.container():
                                     all_docs.extend(docs)
                             
                             # 3. 处理完所有文档后再创建向量存储
-                            rag_components["vector_store_manager"].create_vector_store(all_docs, collection_name="energy_docs")
-                            st.session_state.vector_store_loaded = True
+                            if st.session_state.vector_store_loaded:
+                                success = rag_components["vector_store_manager"].add_documents(all_docs)
+                                if not success:
+                                    st.error("添加文档到向量存储失败")
+                            else:
+                                rag_components["vector_store_manager"].create_vector_store(all_docs, collection_name="energy_docs")
+                                st.session_state.vector_store_loaded = True
 
                             rag_components["rag_chain"].setup_qa_chain(
                                 llm_provider=provider.lower(),
