@@ -23,7 +23,6 @@ with left_col:
     st.markdown("## 功能导航")
     
     # 创建四个直角按钮，使用紧凑布局
-    # 第一个选项 - 能源AI助手（调用app.py）
     if st.button("能源AI助手", use_container_width=True, type="primary"):
         st.session_state.selected_page = 0
     
@@ -41,26 +40,15 @@ with left_col:
     
     st.text("")
     
-    if st.button("功能四", use_container_width=True):
+    if st.button("RAG manager", use_container_width=True):
         st.session_state.selected_page = 3
 
 # 右侧内容区域
 with right_col:
-    # 根据选中的页面显示不同内容
-    if st.session_state.selected_page == 0:
-        # 导入并运行app.py的功能
+    if st.session_state.selected_page ==0:
         try:
-            import importlib.util
-            import sys
-            
-            # 使用importlib动态导入app.py
-            app_path = os.path.join(os.path.dirname(__file__), "app.py")
-            spec = importlib.util.spec_from_file_location("app", app_path)
-            app_module = importlib.util.module_from_spec(spec)
-            sys.modules["app"] = app_module
-            
-            # 执行app.py
-            spec.loader.exec_module(app_module)
+            from frontend import app
+            app.main()
         except Exception as e:
             st.error(f"加载能源AI助手页面时出错: {e}")
     
@@ -73,5 +61,8 @@ with right_col:
         st.info("此功能正在开发中...")
     
     elif st.session_state.selected_page == 3:
-        st.markdown("### 功能四")
-        st.info("此功能正在开发中...")
+        try:
+            from frontend import rag_manager
+            rag_manager.main()
+        except Exception as e:
+            st.error(f"加载RAG manager页面时出错: {e}")
