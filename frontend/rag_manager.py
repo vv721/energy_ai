@@ -1,173 +1,109 @@
 import streamlit as st
-import os
-import sys
-import pathlib as Path
 
-#navigate to root
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+from .config import VECTORSTORE_PATH, COLLECTION_NAME
+from .components import create_docs_expander, create_act_btns, create_stat_indicator
+from .services import RAGService, StateManager
+from .utils import format_result_msg, reset_app_state
 
-from backend.rag import VectorStoreManager, DocumentProcessor
-from langchain_core.documents import Document
 
 @st.cache_resource
-def init_vector_store_manager():
-    vectorstore_path = os.path.join(PROJECT_ROOT, "vectorstore", "energy_docs")
-    return VectorStoreManager(persist_directory=str(vectorstore_path))
+def get_rag_service():
+    #获取RAG服务实例（缓存）
+    return RAGService()
 
-def get_all_docs(vector_store_manager):
-    vector_store = vector_store_manager.load_vector_store(collection_name="energy_docs")
-    
-    if vector_store is None:
-        return []
-    return []
-
-def del_collection(vector_store_manager):
-    # 清除当前会话状态中的RAG组件
-    if "rag_components" in st.session_state:
-        # 显式清理RAG组件中的资源
-        if st.session_state.rag_components:
-            try:
-                # 关闭向量存储连接
-                if "vector_store_manager" in st.session_state.rag_components:
-                    vs_manager = st.session_state.rag_components["vector_store_manager"]
-                    if hasattr(vs_manager, 'vector_store') and vs_manager.vector_store:
-                        try:
-                            if hasattr(vs_manager.vector_store, '_client'):
-                                vs_manager.vector_store._client.close()
-                        except:
-                            pass
-                        vs_manager.vector_store = None
-            except:
-                pass
-        st.session_state.rag_components = None
-    
-    if "vector_store_loaded" in st.session_state:
-        st.session_state.vector_store_loaded = False
-    if "rag_initialized" in st.session_state:
-        st.session_state.rag_initialized = False
-
-    # 强制垃圾回收
-    import gc
-    gc.collect()
-    
-    # 等待一小段时间让资源释放
-    import time
-    time.sleep(0.2)
-
-    # 调用后端删除方法并返回结果
-    result = vector_store_manager.del_collection(collection_name="energy_docs")
-    return result
 
 def main():
+
     st.markdown("#RAG docs manager", unsafe_allow_html=True)
 
-    vector_store_manager = init_vector_store_manager()
-    vector_store = vector_store_manager.load_vector_store(collection_name="energy_docs")
+    rag_service = get_rag_service()
+
+    vector_store = rag_service.load_vector_store()
+
     if vector_store is None:
-        st.warning("No vector store found.")
+        create_stat_indicator("warning", "未找到向量存储")
     else:
-        st.success("Vector store loaded successfully.")
+        create_stat_indicator("success", "向量存储加载成功")
 
     st.divider()
 
-    st.subheader("docs list")
+    st.subheader("文档列表")
 
     if vector_store is not None:
-        st.info(f"loaded vector store")
+        st.info("已加载向量存储")
 
         try:
-            sample_docs = vector_store_manager.similar_search("test", k=5)
-            st.write(f"sample docs number: {len(sample_docs)}")
+            sample_docs = rag_service.get_sample_docs()
+            st.write(f"示例文档数量: {len(sample_docs)}")
 
             for i, doc in enumerate(sample_docs):
-                with st.expander(f"doc {i}"):
-                    st.write(doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content)
+                create_docs_expander(i, doc.page_content)
         except Exception as e:
-            st.error(f"Error loading docs: {e}")
+            st.error(f"加载文档时出错 {e}")
     else:
-        st.warning("No docs found.")
+        create_stat_indicator("warning", "未找到文档")
 
     st.divider()
 
-    st.subheader("docs manager")
+    st.subheader("文档管理")
 
-    if st.button("DELETE collection", type="primary"):
-        if vector_store is not None:
-            try:
-                # 在删除前尝试清理可能占用资源的对象
-                if 'vector_store_manager' in locals():
-                    try:
-                        if vector_store_manager.vector_store:
-                            vector_store_manager.vector_store = None
-                    except:
-                        pass
-                
-                # 强制垃圾回收
-                import gc
-                gc.collect()
-                gc.collect()
-                
-                # 等待一小段时间让资源释放
-                import time
-                time.sleep(0.5)
-                
-                # 调用删除函数并获取详细结果
-                result = del_collection(vector_store_manager)
-                
-                # 显示删除过程的详细信息
-                st.subheader("删除过程详情:")
-                if isinstance(result, dict):  # 确保是字典格式
-                    for message in result.get("messages", []):
-                        if "失败" in message or "错误" in message:
-                            st.error(message)
-                        elif "警告" in message:
-                            st.warning(message)
-                        else:
-                            st.success(message)
-                    
-                    if result.get("success", False):
-                        st.success("Collection deleted successfully.")
-                        # 清除所有缓存并重新初始化
-                        st.cache_resource.clear()
-                        init_vector_store_manager.clear()
-                        # 清除会话状态
-                        st.session_state.clear()
-                        # 强制重新运行应用
-                        st.rerun()  # 使用新的 rerun 方法替代 experimental_rerun
-                    else:
-                        st.error("Failed to delete collection.")
-                        # 显示错误详情
-                        st.error("删除过程中出现以下错误:")
-                        for error in result.get("errors", []):
-                            st.error(f"- {error}")
-                else:  # 处理旧版本返回布尔值的情况
-                    if result:
-                        st.success("Collection deleted successfully.")
-                        # 清除所有缓存并重新初始化
-                        st.cache_resource.clear()
-                        init_vector_store_manager.clear()
-                        # 清除会话状态
-                        st.session_state.clear()
-                        # 强制重新运行应用
-                        st.rerun()
-                    else:
-                        st.error("Failed to delete collection.")
-            except Exception as e:
-                st.error(f"Error deleting collection: {e}")
+    def del_coll(rag_service):
+        #删除集合
+        vector_store = rag_service.load_vector_store()
+        if vector_store is None:
+            create_stat_indicator("warning", "向量存储未初始化")
+            return
+        
+        #清楚当前会话状态的RAG组件
+        if "rag_components" in st.session_state:
+            StateManager.set_rag_components({})
 
-    if st.button("REFRESH", type="primary"):
-        vector_store = vector_store_manager.load_vector_store(collection_name="energy_docs")
-        if vector_store is not None:
-            st.success("Vector store loaded successfully.")
+        #更新状态
+        StateManager.set_vector_store_loaded(False)
+        StateManager.set_rag_initialized(False)
+
+        result = rag_service.del_coll()
+
+        st.subheader("删除过程详情：")
+        format_result_msg(result)
+
+        if result.get("success", False):
+            create_stat_indicator("success", "集合删除成功")
+            #重置应用状态
+            reset_app_state()
         else:
-            st.warning("No vector store found.")
+            create_stat_indicator("error", "集合删除失败")
 
-        #update session state
-        st.session_state.vector_store_loaded = vector_store is not None
+    def refresh_vector_store(rag_service):
+        #刷新向量存储
+        vector_store = rag_service.load_vector_store()
+
+        if vector_store is not None:
+            create_stat_indicator("success", "向量存储刷新成功")
+        else:
+            create_stat_indicator("error", "向量存储刷新失败")
+
+        #更新状态
+        StateManager.set_vector_store_loaded(vector_store is not None)
         st.rerun()
 
+
+    buttons = [
+        {
+            "name": "删除集合",
+            "type": "primary",
+            "callback": del_coll,
+            "args": {"rag_service": rag_service}
+        },
+        {
+            "name": "刷新",
+            "type": "primary",
+            "callback": refresh_vector_store,
+            "args": {"rag_service": rag_service}
+        }
+    ]
+
+    create_act_btns(buttons)
 
 if __name__ == "__main__":
     main()

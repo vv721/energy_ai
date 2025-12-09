@@ -1,14 +1,20 @@
 import os
 import dashscope
+import time
+import shutil
 from typing import List, Optional
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.embeddings import Embeddings
 from http import HTTPStatus
-import hashlib
-import numpy as np
 
+from ..config import (
+    DASHSCOPE_API_KEY, OPENAI_API_KEY,
+    DEFAULT_COLLECTION_NAME, VECTORSTORE_PATH
+)
+from ..exceptions import VectorStoreError, APIConnectionError
+from ..utils import ensure_dir_exists, safe_file_opn, cleanup_resources, hash_text
 
 class LocalEmbeddings(Embeddings):
     """本地简单嵌入模型（哈希+随机）- 用于演示和测试，不依赖外部服务。
@@ -17,32 +23,26 @@ class LocalEmbeddings(Embeddings):
     """
     
     def __init__(self, seed: int = 42):
+        import numpy as np
         np.random.seed(seed)
         self.seed = seed
     
-    def _hash_to_embedding(self, text: str, dim: int = 384) -> List[float]:
-        """将文本哈希转换为嵌入向量（用于确定性）。"""
-        text_hash = hashlib.md5(text.encode()).digest()
-        np.random.seed(int.from_bytes(text_hash[:4], 'big'))
-        return np.random.randn(dim).tolist()
-    
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """嵌入文档列表。"""
-        return [self._hash_to_embedding(text) for text in texts]
+        return [hash_text(text) for text in texts]
     
     def embed_query(self, text: str) -> List[float]:
         """嵌入单个查询。"""
-        return self._hash_to_embedding(text)
-
+        return hash_text(text)
 
 
 class DashScopeEmbeddings(Embeddings):
     #Packaging Aliyun DashScope Embeddings
     def __init__(self, model: str="text-embedding-v1", api_key: str=None):
         self.model = model
-        self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY")
+        self.api_key = api_key or DASHSCOPE_API_KEY
         if not self.api_key:
-            raise ValueError("DashScope API Key 未配置")
+            raise VectorStoreError("DashScope API Key 未配置")
         dashscope.api_key = self.api_key
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -93,63 +93,58 @@ class DashScopeEmbeddings(Embeddings):
             else:
                 raise ValueError("嵌入返回为空")
         except Exception as e:
-            print(f"[错误] 查询嵌入失败：{e}")
-            raise
+            raise VectorStoreError(f"查询嵌入失败：{e}")
 
 
-class VectorStoreManager:
-    """向量存储管理器，支持 DashScope 或 OpenAI 嵌入。"""
+class EmbeddingFactory:
+    #创建嵌入模型，根据可用APIkey选择最佳选项
 
-    def __init__(self, persist_directory: str = "vectorstore"):
-        self.persist_directory = persist_directory
-        
-        # 优先级：OpenAI > DashScope > 本地模型
-        self.embeddings = self._init_embeddings()
-        self.vector_store = None
-    
-    def _init_embeddings(self):
-        """初始化嵌入模型，根据可用的 API Key 选择最佳选项。
-        
-        优先级：
-        1. DashScope (Aliyun) - 如果配置了有效的 API Key
-        2. OpenAI - 如果配置了有效的 API Key  
-        3. 本地模型 - 作为后备方案
-        """
-        # 首选：DashScope (阿里云) - 优先级提高
-        dashscope_key = os.getenv("DASHSCOPE_API_KEY")
-        # 检查 API Key 是否有效（不是 "your_key" 这样的默认值）
-        if dashscope_key and dashscope_key.strip() and not dashscope_key.startswith("your"):
+    @staticmethod
+    def create_embeddings() -> Embeddings:
+        #DashScope
+        if DASHSCOPE_API_KEY and DASHSCOPE_API_KEY.strip():
             try:
                 print("[信息] 使用 DashScope 嵌入模型")
-                return DashScopeEmbeddings(model="text-embedding-v1", api_key=dashscope_key)
+                return DashScopeEmbeddings(model="text-embedding-v1", api_key=DASHSCOPE_API_KEY)
             except Exception as e:
                 print(f"[警告] DashScope 初始化失败: {e}")
-        
-        # 备选：OpenAI
-        openai_key = os.getenv("OPENAI_API_KEY")
-        # 检查 API Key 是否有效（不是 "your_key" 这样的默认值）
-        if openai_key and openai_key.strip() and not openai_key.startswith("your"):
+
+        #OpenAI
+        if OPENAI_API_KEY and OPENAI_API_KEY.strip():
             try:
                 print("[信息] 使用 OpenAI 嵌入模型")
-                return OpenAIEmbeddings(api_key=openai_key, model="text-embedding-3-small")
+                return OpenAIEmbeddings(api_key=OPENAI_API_KEY, model="text-embedding-3-small")
             except Exception as e:
                 print(f"[警告] OpenAI 初始化失败: {e}")
-        
-        # 回退：本地模型（不下载，使用内存中的）
-        print("[信息] 使用本地嵌入模型")
+
+        print("[信息] use local embeddings")
         return LocalEmbeddings()
 
-    def create_vector_store(self, documents: List[Document], collection_name: str = "default_collection"):
-        os.makedirs(self.persist_directory, exist_ok=True)
-        self.vector_store = Chroma.from_documents(
-            documents=documents,
-            embedding=self.embeddings,
-            collection_name=collection_name,
-            persist_directory=self.persist_directory
-        )
-        return self.vector_store
+class VectorStoreManager:
+    """向量存储管理器，支持多种嵌入模型和向量数据库"""
+
+    def __init__(self, persist_directory: str = VECTORSTORE_PATH):
+
+        self.persist_directory = persist_directory
+        ensure_dir_exists(self.persist_directory)
+
+        #init embedding model
+        self.embeddings = EmbeddingFactory.create_embeddings()
+        self.vector_store = None
+
+    def create_vector_store(self, documents: List[Document], collection_name: str = DEFAULT_COLLECTION_NAME) -> Chroma:
+        try:
+            self.vector_store = Chroma.from_documents(
+                documents=documents,
+                embedding=self.embeddings,
+                collection_name=collection_name,
+                persist_directory=self.persist_directory
+            )
+            return self.vector_store
+        except Exception as e:
+            raise VectorStoreError(f"创建向量存储失败：{e}")
     
-    def load_vector_store(self, collection_name: str = "default_collection") -> Optional[Chroma]:
+    def load_vector_store(self, collection_name: str = DEFAULT_COLLECTION_NAME) -> Optional[Chroma]:
         if not os.path.exists(self.persist_directory):
             print(f"向量存储目录不存在： {self.persist_directory}")
             return None
@@ -162,34 +157,35 @@ class VectorStoreManager:
             )
             return self.vector_store
         except Exception as e:
-            print(f"加载向量存储失败：{e}")
-            return None
+            raise VectorStoreError(f"加载向量存储失败：{e}")
     
-    def add_documents(self, documents: List[Document]):
+    def add_documents(self, documents: List[Document]) -> bool:
         if self.vector_store is None:
             print("请先创建或加载向量存储。")
-            return False
         
         try:
             self.vector_store.add_documents(documents)
             return True
         except Exception as e:
-            print(f"添加文档到向量存储失败：{e}")
-            return False
+            raise VectorStoreError(f"添加文档到向量存储失败：{e}")
         
     def similar_search(self, query: str, k: int = 3) -> List[Document]:
         if self.vector_store is None:
-            print("请先创建或加载向量存储")
-            return []
+            raise VectorStoreError("请先创建或加载向量存储")
         
-        return self.vector_store.similarity_search(query, k=k)
+        try:
+            return self.vector_store.similarity_search(query, k=k)
+        except Exception as e:
+            raise VectorStoreError(f"相似度搜索失败：{e}")
     
     def similar_search_score(self, query: str, k: int = 3) -> List[tuple[Document, float]]:
         if self.vector_store is None:
-            print("请先创建或加载向量存储")
-            return []
+            raise VectorStoreError("请先创建或加载向量存储")
         
-        return self.vector_store.similarity_search_with_score(query, k=k)
+        try:
+            return self.vector_store.similarity_search_with_score(query, k=k)
+        except Exception as e:
+            raise VectorStoreError(f"相似度搜索失败：{e}")
     
     def del_collection(self, collection_name: str = "default_collection"):
         """删除向量存储集合，返回详细的状态信息"""
@@ -217,28 +213,24 @@ class VectorStoreManager:
                             #更彻底的关闭链接
                             if hasattr(self.vector_store, '_client'):
                                 self.vector_store._client.close()
-                                if hasattr(self.vector_store_client, 'http'):
+                                if hasattr(self.vector_store._client, '_http_client'):
                                     self.vector_store._client._http_client.close()
                         except Exception as e:
                             pass  # 忽略关闭过程中的异常
         
                         self.vector_store = None
 
-            # 强制垃圾回收以释放文件句柄
-            import gc
-            gc.collect()
-            gc.collect()
-
-            # 等待一段时间让文件句柄释放
-            import time
-            time.sleep(1.0)
+            #强制垃圾回收释放文件句柄
+            cleanup_resources()
 
             # 删除持久化目录
             if os.path.exists(self.persist_directory):
-                import shutil
+                def delete_dir(dir_path):
+                    shutil.rmtree(dir_path)
+
                 try:
                     # 尝试直接删除整个目录
-                    shutil.rmtree(self.persist_directory)
+                    safe_file_opn(delete_dir, self.persist_directory)
                     result["messages"].append(f"已删除持久化目录: {self.persist_directory}")
                 except Exception as e:
                     warning_msg = f"删除持久化目录时出现警告: {e}"
@@ -249,8 +241,7 @@ class VectorStoreManager:
                         max_retries = 10
                         for attempt in range(max_retries):
                             try:
-
-                                gc.collect()
+                                cleanup_resources()
 
                                 for root, dirs, files in os.walk(self.persist_directory, topdown=False):
                                     for name in files:
@@ -319,7 +310,7 @@ class VectorStoreManager:
             
             # 重新创建空目录
             try:
-                os.makedirs(self.persist_directory, exist_ok=True)
+                ensure_dir_exists(self.persist_directory)
                 result["messages"].append(f"已重新创建空目录: {self.persist_directory}")
             except Exception as e:
                 error_msg = f"重新创建目录失败: {e}"
