@@ -2,6 +2,10 @@
 
 import os
 import sys
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 # 项目根目录
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -16,29 +20,13 @@ VECTORSTORE_PATH = os.path.join(PROJECT_ROOT, "vectorstore", "energy_docs")
 # 集合名称
 COLLECTION_NAME = "energy_docs"
 
-# 页面配置
-PAGE_CONFIG = {
-    "page_title": "能源AI系统",
-    "layout": "wide",
-    "initial_sidebar_state": "expanded"
-}
+# 模型配置（从环境变量读取）
+DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "aliyun")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen-turbo")
+TEMPERATURE = float(os.getenv("TEMPERATURE", "0.1"))
+MAX_TOKENS = int(os.getenv("MAX_TOKENS", "1000"))
 
-# 页面导航配置
-PAGES = [
-    {"id": 0, "name": "能源AI助手", "module": "app"},
-    {"id": 1, "name": "功能二", "module": None, "coming_soon": True},
-    {"id": 2, "name": "功能三", "module": None, "coming_soon": True},
-    {"id": 3, "name": "RAG manager", "module": "rag_manager"}
-]
-
-# UI样式配置
-UI_CONFIG = {
-    "primary_color": "#FF6B6B",
-    "background_color": "#F8F9FA",
-    "text_color": "#212529",
-    "border_radius": "0px",  # 直角设计
-    "button_style": {
-        "use_container_width": True,
-        "type": "primary"
-    }
-}
+# 删除以下Streamlit特定配置：
+# PAGE_CONFIG = {...}
+# PAGES = [...]
+# UI_CONFIG = {...}

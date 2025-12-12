@@ -159,16 +159,16 @@ class VectorStoreManager:
         except Exception as e:
             raise VectorStoreError(f"加载向量存储失败：{e}")
     
-    def add_documents(self, documents: List[Document]) -> bool:
+    def add_documents(self, documents: List[Document]) -> dict:
         if self.vector_store is None:
-            print("请先创建或加载向量存储。")
-        
+            return {"success": False, "error": "请先创建或加载向量存储"}
+
         try:
             self.vector_store.add_documents(documents)
-            return True
+            return {"success": True, "message": "文档添加成功"}
         except Exception as e:
-            raise VectorStoreError(f"添加文档到向量存储失败：{e}")
-        
+            return {"success": False, "error": f"添加文档到向量存储失败：{e}"}
+
     def similar_search(self, query: str, k: int = 3) -> List[Document]:
         if self.vector_store is None:
             raise VectorStoreError("请先创建或加载向量存储")

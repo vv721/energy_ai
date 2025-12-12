@@ -1,0 +1,42 @@
+[UI]
+name = "能源AI助手"
+language = "zh-CN"
+layout = "wide"
+default_sidebar_state = "open"
+description = "智能能源文档问答系统"
+
+# 添加导航栏配置 - 4个功能
+[[UI.sidebar]]
+name = "智能问答"
+icon = "💬"
+elements = [
+    {name = "文档问答", action = "chat", icon = "🤖"},
+    {name = "上传文档", action = "upload", icon = "📤"},
+    {name = "知识库状态", action = "status", icon = "📊"}
+]
+
+[[UI.sidebar]]
+name = "Agent"
+icon = "🔮"
+elements = [
+    {name = "智能代理", action = "agent", icon = "🤖"},
+    {name = "任务管理", action = "tasks", icon = "📋"},
+    {name = "代理配置", action = "agent_config", icon = "⚙️"}
+]
+
+[[UI.sidebar]]
+name = "预留功能"
+icon = "📁"
+elements = [
+    {name = "功能开发中", action = "placeholder1", icon = "🔄"},
+    {name = "敬请期待", action = "placeholder2", icon = "⏳"}
+]
+
+[[UI.sidebar]]
+name = "RAG Manager"
+icon = "📚"
+elements = [
+    {name = "RAG管理", action = "rag_manager", icon = "📖"},
+    {name = "向量库管理", action = "vector_store", icon = "🗂️"},
+    {name = "文档处理", action = "doc_processing", icon = "✂️"}
+]

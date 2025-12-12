@@ -57,55 +57,42 @@ def force_gc_coll() -> None:
 
 
 def display_stat_msg(status: str, message: str) -> None:
-    #显示状态消息
-    import streamlit as st
-
-    if status == "success":
-        st.success(message)
-    elif status == "warning":
-        st.warning(message)
-    elif status == "error":
-        st.error(message)
-    elif status == "info":
-        st.info(message)
+    #显示状态消息 - 在Chainlit环境中使用print输出
+    status_icons = {
+        "success": "✅",
+        "warning": "⚠️", 
+        "error": "❌",
+        "info": "ℹ️"
+    }
+    icon = status_icons.get(status, "ℹ️")
+    print(f"{icon} {message}")
 
 
 def handle_exc(e: Exception, context: str = "") -> None:
-    #处理异常，显示错误消息
-    import streamlit as st
-
+    #处理异常，显示错误消息 - 在Chainlit环境中使用print输出
     error_msg = f"{context}: {str(e)}" if context else str(e)
-    st.error(error_msg)
+    print(f"❌ Error: {error_msg}")
 
 
 def reset_app_state() -> None:
-    #重置应用状态
-    import streamlit as st
-    
-    st.cache_resource.clear()
-
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-
-    st.rerun()
+    #重置应用状态 - 在Chainlit环境中无操作
+    print("ℹ️ App state reset requested (not applicable in Chainlit environment)")
 
 
 def format_result_msg(result: Dict[str, Any]) -> None:
-    #格式化查询结果消息
-    import streamlit as st
-
+    #格式化查询结果消息 - 在Chainlit环境中使用print输出
     if not isinstance(result, dict):
         return
 
     msgs = result.get("msgs", [])
     for msg in msgs:
         if "失败" in msg or "错误" in msg:
-            st.error(msg)
+            print(f"❌ Result Message: {msg}")
         elif "警告" in msg:
-            st.warning(msg)
+            print(f"⚠️ Result Message: {msg}")
         else:
-            st.success(msg)
+            print(f"✅ Result Message: {msg}")
 
     errors = result.get("errors", [])
     for err in errors:
-        st.error(f"- {err}")
+        print(f"❌ Result Error: {err}")
